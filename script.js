@@ -91,7 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const size = Math.random() * 20 + 20; // Entre 20px y 40px
             const leftPos = Math.random() * window.innerWidth;
             const duration = Math.random() * 4 + 4; // Entre 4s y 8s animando
-            const hueRotate = Math.random() * 80 - 40; // Rota el color entre ligeros rojos, rosados y destellos violáceos
+            // Modificamos el brillo o rotamos la tonalidad MÍNIMAMENTE para que siga siendo 100% rosa.
+            const brightness = Math.random() * 0.5 + 0.8; // Variación entre 0.8x a 1.3x de brillo de rosa
 
             // Aplicar estilos base
             gsap.set(heart, {
@@ -100,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 left: leftPos,
                 bottom: -50,
                 opacity: 0.8,
-                filter: `hue-rotate(${hueRotate}deg)`
+                filter: `brightness(${brightness})`
             });
 
             // Animar el corazón subiendo con leve movimiento lateral y desvaneciendo al final

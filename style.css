@@ -234,7 +234,7 @@ body::before {
     opacity: 0;
     z-index: 1; /* Detrás del sobre */
     pointer-events: none;
-    /* El background usando el SVG creado en assets */
-    background-image: url('assets/heart.svg');
+    /* El background usando el SVG creado en assets, con ?v=2 para recargar caché */
+    background-image: url('assets/heart.svg?v=2');
     background-size: cover;
 }
