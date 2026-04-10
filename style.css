@@ -201,6 +201,7 @@ body::before {
     font-size: 1.6rem; /* Se ve más pequeño nativamente por lo que un 1.6 funciona mejor */
     line-height: 1.4;
     color: var(--text-color);
+    white-space: pre-wrap; /* Permite respetar los saltos de línea del texto */
     /* Min height para que la carta no salte al escribir el texto */
     min-height: 120px; 
 }
