@@ -70,11 +70,13 @@ document.addEventListener("DOMContentLoaded", () => {
         typeInterval = setInterval(() => {
             if (i < textToType.length) {
                 typewriterElement.innerHTML += textToType.charAt(i);
+                // Si la carta tiene scroll, bajamos el scroll automáticamente al escribir
+                typewriterElement.scrollTop = typewriterElement.scrollHeight;
                 i++;
             } else {
                 clearInterval(typeInterval); // Detener el intervalo al finalizar
             }
-        }, 40); // Un poco más rápido (40ms) para que sea más dinámico
+        }, 15); // Disminuido a 15ms porque el texto de la carta es muy largo
     }
 
     /**
