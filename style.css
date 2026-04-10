@@ -1,0 +1,240 @@
+:root {
+    --primary-color: #ff3366; /* Un rosa vibrante pero romántico */
+    --envelope-color: #fff0f3; /* Blanco tintado en rosa/crema para verse más cálido */
+    --envelope-shadow: #ffb6c1; /* Sombreado rosa pastel para plegado */
+    --letter-bg: #fffcfd; /* Blanco con destellos cálidos */
+    --text-color: #8c2645; /* Texto color tinta guindo/rosa para contrastar suavemente */
+    --bg-color: #ffb6c1; /* Fondo rosa pastel MUCHO mas fuerte como sugerido */
+}
+
+/* Reset básico para márgenes y paddings */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    /* Implementación de la imagen de fondo responsiva */
+    background-image: url('assets/background.jpeg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: scroll; /* Funciona mejor en móviles para evitar saltos */
+    height: 100vh;
+    overflow: hidden; /* Ocultar scroll para los corazones flotantes */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Pseudo-elemento para aplicar un tinte oscuro encima de la imagen de fondo 
+   y mejorar significativamente el contraste con el contenido interactivo y texto */
+body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(60, 20, 30, 0.5) 100%);
+    backdrop-filter: blur(3px); /* Añade algo de estética glassmorphism sutil para que el fondo se centre en ellos y destaque el sobre en primer plano */
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 0;
+}
+
+.container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5; /* Por encima del overlay del fondo */
+}
+
+/* Contenedor principal del sobre */
+.envelope-wrapper {
+    position: relative;
+    /* Tamaños algo adaptables (responsivos) pero basados en una proporción principal */
+    width: min(90vw, 300px); 
+    height: min(60vw, 200px);
+    cursor: pointer;
+    perspective: 1500px; /* Perspectiva ampliada para suavizar el 3D */
+    z-index: 10;
+    /* Sombra romántica enorme para DESTACAR totalmente el sobre */
+    box-shadow: 0 30px 60px rgba(220, 50, 90, 0.35), 0 10px 25px rgba(220, 50, 90, 0.2);
+    border-radius: 8px; /* Redondeamos las esquinas para el envoltorio también */
+}
+
+/* Estilos comunes para las partes del sobre */
+.envelope {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+}
+
+/* Parte trasera del sobre */
+.envelope-back {
+    background-color: var(--envelope-color);
+    box-shadow: inset 0 0 30px rgba(255, 150, 180, 0.05); /* Efecto ligero de papel rugoso interno */
+    z-index: 1;
+}
+
+/* Parte frontal del sobre, creada con bordes CSS para lograr la forma de triángulo */
+.envelope-front {
+    background-color: transparent;
+    border-right: min(45vw, 150px) solid var(--envelope-shadow);
+    border-left: min(45vw, 150px) solid var(--envelope-shadow);
+    border-bottom: min(30vw, 100px) solid var(--envelope-color);
+    border-top: min(30vw, 100px) solid transparent;
+    z-index: 3;
+    /* Evitar interacción con el mouse en los bordes transparentes */
+    pointer-events: none;
+}
+
+/* Solapa superior del sobre */
+.flap {
+    border-left: min(45vw, 150px) solid transparent;
+    border-right: min(45vw, 150px) solid transparent;
+    border-top: min(39vw, 130px) solid var(--envelope-color);
+    border-bottom: min(21vw, 70px) solid transparent;
+    z-index: 4;
+    transform-origin: top;
+/* Transición de CIERRE: Muy lenta y elegante */
+    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1) 0.8s, z-index 0s 0.8s;
+    filter: drop-shadow(0 6px 10px rgba(220, 50, 90, 0.3)); /* Sombra proyectada mucho más rica */
+}
+
+/* --- SELLO DE CERA --- */
+.wax-seal {
+    position: absolute;
+    /* Ubicado exactamente en la punta de la solapa gracias al box-model */
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    width: 55px;
+    height: 55px;
+    background: radial-gradient(circle at 35% 35%, #e63946, #99121f); /* Rojo carmesí de cera derrerida */
+    border-radius: 50%;
+    z-index: 5;
+    /* Efectos de cera con brillo central e interior quemado */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3), inset 0 -3px 8px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: rgba(255, 200, 200, 0.9);
+    transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease;
+}
+
+/* El grabado del sello de cera */
+.wax-seal::after {
+    content: '❤'; /* Grabado de corazon */
+    font-size: 1.6rem;
+    filter: drop-shadow(0 -1px 1px rgba(0,0,0,0.5));
+}
+
+/* --- CLASES DE ANIMACIÓN AL HACER CLIC --- */
+/* Cuando el sobre recibe la clase .open, rotamos la solapa en el eje x */
+.envelope-wrapper.open .flap {
+    transform: rotateX(180deg);
+    z-index: 1; /* Se va detrás para dejar paso a la carta */
+    /* Transición de APERTURA: lenta y curva romántica */
+    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), z-index 0s 0.4s;
+}
+
+/* Al abrirse, el sello emula 'romperse' desvaneciéndose dinámicamente y moviéndose */
+.envelope-wrapper.open .wax-seal {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+/* La carta en sí */
+.letter {
+    position: absolute;
+    bottom: 5px; /* Un pequeño descanso dentro del sobre */
+    left: 4%;
+    width: 92%;
+    height: 190px;
+    background-color: var(--letter-bg);
+    border-radius: 12px; /* Más redondeada para que no sea tosca */
+    border: 1px solid rgba(255,107,139, 0.1); /* Borde super sutil */
+    z-index: 2;
+    box-shadow: 0 4px 15px rgba(255, 133, 162, 0.15); /* Sombra rosada elegante en vez de negra tosca */
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Alineado al centro para que el texto no quede muy arriba */
+    padding: 30px 20px;
+    /* Inicio dentro del sobre */
+    transform: translateY(0) scale(1);
+    /* Transición de CIERRE: fluida pero moderada */
+    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), height 0.8s cubic-bezier(0.25, 1, 0.5, 1), z-index 0s;
+}
+
+/* Al abrirse, la carta se desliza arriba, aumenta de tamaño y de z-index */
+.envelope-wrapper.open .letter {
+    transform: translateY(-100px) scale(1.03); /* Sube menos para que el texto quede centrado en el campo visual */
+    height: 270px; /* Tamaño más moderado para que no salga de pantalla */
+    z-index: 5;
+    /* Transición de APERTURA: 0.6s de retraso para darle tiempo a la solapa y sube lennntamennnte (1s) */
+    transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1) 0.6s, height 1s cubic-bezier(0.25, 1, 0.5, 1) 0.6s, z-index 0s 0.6s;
+}
+
+/* Contenido interno de la carta */
+.letter-content {
+    text-align: center;
+    width: 100%;
+}
+
+.letter-content h1 {
+    font-family: 'Dancing Script', cursive;
+    color: var(--primary-color);
+    font-size: 3.2rem; /* Ligeramente más grande */
+    margin-bottom: 5px;
+}
+
+.letter-content p {
+    font-family: 'Caveat', cursive; /* Tipografía manuscrita implementada */
+    font-size: 1.6rem; /* Se ve más pequeño nativamente por lo que un 1.6 funciona mejor */
+    line-height: 1.4;
+    color: var(--text-color);
+    /* Min height para que la carta no salte al escribir el texto */
+    min-height: 120px; 
+}
+
+/* Indicador de "Haz clic" */
+.click-indicator {
+    position: absolute;
+    bottom: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--primary-color);
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    animation: pulse 1.5s infinite;
+    pointer-events: none;
+    text-align: center;
+    width: 200px;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; transform: translateX(-50%) translateY(0); }
+    50% { opacity: 1; transform: translateX(-50%) translateY(5px); }
+    100% { opacity: 0.5; transform: translateX(-50%) translateY(0); }
+}
+
+/* Corazón generado dinámicamente en JS */
+.heart {
+    position: absolute;
+    bottom: -100px;
+    opacity: 0;
+    z-index: 1; /* Detrás del sobre */
+    pointer-events: none;
+    /* El background usando el SVG creado en assets */
+    background-image: url('assets/heart.svg');
+    background-size: cover;
+}

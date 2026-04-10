@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light only">
+    <meta name="darkreader-lock">
+    <title>Para ti...</title>
+    <!-- Favicon de corazoncito (opcional) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>❤️</text></svg>">
+    <!-- Vincula la hoja de estilos externa -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Fuente moderna e invinting para el diseño premium -->
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Caveat:wght@500;600&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Contenedor principal que alojará todo, incluidos los corazones de fondo -->
+    <main class="container">
+        
+        <!-- Elemento de audio preparado para reproducirse al hacer clic -->
+        <audio id="bg-music" loop>
+            <source src="assets/music.mp3" type="audio/mpeg">
+            Tu navegador no soporta el elemento de audio.
+        </audio>
+
+        <!-- El contenedor del sobre interactivo -->
+        <div class="envelope-wrapper" id="envelope-wrapper">
+            <!-- La parte trasera del sobre -->
+            <div class="envelope envelope-back"></div>
+            
+            <!-- La carta que saldrá de adentro del sobre -->
+            <div class="letter" id="letter">
+                <div class="letter-content">
+                    <h1>Para ti</h1>
+                    <!-- Texto temporal Lorem Ipsum para la animación de máquina de escribir -->
+                    <p id="typewriter-text" data-text="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Te quiero mucho. ❤️"></p>
+                </div>
+            </div>
+
+            <!-- Las solapas y la parte frontal del sobre -->
+            <div class="envelope flap" id="flap">
+                <!-- Sello de cera en la punta de la solapa -->
+                <div class="wax-seal" id="wax-seal"></div>
+            </div>
+            <div class="envelope envelope-front"></div>
+            
+            <!-- Indicador visual para hacer clic -->
+            <div class="click-indicator" id="click-indicator">Haz clic para abrir</div>
+        </div>
+    </main>
+
+    <!-- Importar la biblioteca GSAP para animaciones fluidas y avanzadas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <!-- Vincula nuestro archivo de lógica en JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
