@@ -15,25 +15,33 @@ document.addEventListener("DOMContentLoaded", () => {
     let typeInterval;
     let typeTimeout;
 
-    // Event listener para el clic en el sobre principal
-    envelopeWrapper.addEventListener("click", () => {
-        if (isOpened) {
-            // --- CERRAR EL SOBRE ---
-            isOpened = false;
-            envelopeWrapper.classList.remove("open");
-            
-            // Mostrar indicador de nuevo gradualmente
-            gsap.to(clickIndicator, { opacity: 0.8, duration: 0.5 });
+    /**
+     * Cierra el sobre si está abierto.
+     */
+    function closeEnvelope() {
+        if (!isOpened) return;
+        isOpened = false;
+        envelopeWrapper.classList.remove("open");
 
-            // Detener y limpiar texto de la máquina de escribir
-            clearTimeout(typeTimeout);
-            clearInterval(typeInterval);
-            
-            // Darle tiempo a la carta para que baje (0.6s) antes de borrar el texto para que no se vea feo
-            setTimeout(() => {
-                if (!isOpened) typewriterElement.textContent = "";
-            }, 600);
-            
+        // Mostrar indicador de nuevo gradualmente
+        gsap.to(clickIndicator, { opacity: 0.8, duration: 0.5 });
+
+        // Detener y limpiar texto de la máquina de escribir
+        clearTimeout(typeTimeout);
+        clearInterval(typeInterval);
+
+        // Darle tiempo a la carta para que baje (0.6s) antes de borrar el texto para que no se vea feo
+        setTimeout(() => {
+            if (!isOpened) typewriterElement.textContent = "";
+        }, 600);
+    }
+
+    // Event listener para el clic en el sobre principal
+    envelopeWrapper.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (isOpened) {
+            closeEnvelope();
         } else {
             // --- ABRIR EL SOBRE ---
             isOpened = true;
@@ -58,6 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
             clearTimeout(typeTimeout);
             typewriterElement.textContent = "";
             typeTimeout = setTimeout(startTypewriter, 1300);
+        }
+    });
+
+    document.addEventListener("click", (event) => {
+        if (isOpened && !event.target.closest("#envelope-wrapper")) {
+            closeEnvelope();
         }
     });
 
