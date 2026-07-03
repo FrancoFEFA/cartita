@@ -1,0 +1,27 @@
+# Dependencias
+node_modules/
+
+# Build de producción
+dist/
+
+# Caché de Vite
+.vite/
+.vite-temp/
+
+# Datos generados por el servidor (las cartas creadas por los usuarios)
+server/cards.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
