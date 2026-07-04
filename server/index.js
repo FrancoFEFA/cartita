@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3001;
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 function readCards() {
   if (!existsSync(DATA_FILE)) return {};

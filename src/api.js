@@ -4,7 +4,16 @@ export async function createCard(data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al crear la carta");
+  if (!res.ok) {
+    let message;
+    try {
+      const body = await res.json();
+      message = body.error;
+    } catch {
+      message = res.status === 413 ? "La imagen es demasiado grande para el servidor" : `Error del servidor (${res.status})`;
+    }
+    throw new Error(message || "Error al crear la carta");
+  }
   return res.json();
 }
 

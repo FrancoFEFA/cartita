@@ -293,6 +293,38 @@ export function renderHome(container) {
         margin-top: 8px;
         min-height: 14px;
       }
+      .share-close {
+        position: absolute;
+        top: 4px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 1.6rem;
+        color: var(--text-soft);
+        cursor: pointer;
+        line-height: 1;
+        padding: 4px;
+        transition: color 0.2s;
+        z-index: 2;
+      }
+      .share-close:hover { color: var(--primary-deep); }
+      .retry-btn {
+        display: block;
+        margin: 10px auto 0;
+        padding: 10px 28px;
+        border: none;
+        border-radius: 40px;
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-deep));
+        color: #fff;
+        font-family: var(--font-title);
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 6px 16px rgba(194,90,99,0.3);
+        transition: transform 0.15s, box-shadow 0.2s;
+      }
+      .retry-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(194,90,99,0.4); }
+      .retry-btn:active { transform: translateY(0) scale(0.98); }
     </style>
 
     <div class="bg-deco"></div>
@@ -360,13 +392,15 @@ export function renderHome(container) {
     </div>
 
     <div class="share-result" id="share-result">
-      <h3>Carta sellada ✨</h3>
-      <p class="hint">Tu carta está lista. Copia el enlace y envíalo:</p>
-      <div class="share-row">
+      <button type="button" id="share-close" class="share-close" aria-label="Cerrar">×</button>
+      <h3 id="share-title">Carta sellada ✨</h3>
+      <p class="hint" id="share-hint">Tu carta está lista. Copia el enlace y envíalo:</p>
+      <div class="share-row" id="share-row">
         <input type="text" id="share-input" readonly>
         <button type="button" id="copy-btn">Copiar</button>
       </div>
       <div class="copied" id="copied-msg"></div>
+      <button type="button" id="retry-btn" class="retry-btn" style="display:none;">Reintentar</button>
     </div>
   `;
 
@@ -380,8 +414,57 @@ export function renderHome(container) {
   const shareInput = container.querySelector("#share-input");
   const copyBtn = container.querySelector("#copy-btn");
   const copiedMsg = container.querySelector("#copied-msg");
+  const shareTitle = container.querySelector("#share-title");
+  const shareHint = container.querySelector("#share-hint");
+  const shareRow = container.querySelector("#share-row");
+  const shareClose = container.querySelector("#share-close");
+  const retryBtn = container.querySelector("#retry-btn");
 
   let customBgDataUrl = null;
+
+  function optimizeImage(file) {
+    return new Promise((resolve, reject) => {
+      const MAX_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        reject(new Error("La imagen es demasiado grande. Máximo 10 MB."));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_W = 1920;
+          const QUALITY = 0.95;
+          if (img.width <= MAX_W && img.height <= MAX_W && file.size < 1024 * 1024) {
+            resolve(e.target.result);
+            return;
+          }
+          const canvas = document.createElement("canvas");
+          let { width, height } = img;
+          if (width > MAX_W) {
+            height = Math.round(height * (MAX_W / width));
+            width = MAX_W;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, width, height);
+          const mime = file.type || "image/jpeg";
+          try {
+            resolve(canvas.toDataURL(mime, QUALITY));
+          } catch {
+            resolve(canvas.toDataURL("image/jpeg", QUALITY));
+          }
+        };
+        img.onerror = () => reject(new Error("No se pudo leer la imagen. Intenta con otro archivo."));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error("Error al leer el archivo."));
+      reader.readAsDataURL(file);
+    });
+  }
 
   bgSelect.addEventListener("change", () => {
     if (bgSelect.value === "custom") {
@@ -396,22 +479,31 @@ export function renderHome(container) {
     }
   });
 
-  bgFile.addEventListener("change", () => {
+  bgFile.addEventListener("change", async () => {
     const file = bgFile.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      customBgDataUrl = e.target.result;
+    bgPreview.textContent = "Optimizando imagen…";
+    try {
+      const dataUrl = await optimizeImage(file);
+      customBgDataUrl = dataUrl;
       bgPreview.classList.add("has-image");
       bgPreview.style.backgroundImage = `url('${customBgDataUrl}')`;
       bgPreview.textContent = "";
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      customBgDataUrl = null;
+      bgPreview.classList.remove("has-image");
+      bgPreview.style.backgroundImage = "";
+      bgPreview.textContent = err.message || "Error al procesar la imagen";
+    }
   });
 
   function showShare(url) {
     const link = `${window.location.origin}${url}`;
     shareInput.value = link;
+    shareTitle.textContent = "Carta sellada ✨";
+    shareHint.textContent = "Tu carta está lista. Copia el enlace y envíalo:";
+    shareRow.style.display = "";
+    retryBtn.style.display = "none";
     shareResult.classList.add("show");
     shareInput.focus();
     shareInput.select();
@@ -427,6 +519,15 @@ export function renderHome(container) {
       copiedMsg.textContent = "¡Enlace copiado! Ya puedes pegarlo y enviarlo.";
     }
     setTimeout(() => (copiedMsg.textContent = ""), 3500);
+  });
+
+  shareClose.addEventListener("click", () => {
+    shareResult.classList.remove("show");
+  });
+
+  retryBtn.addEventListener("click", () => {
+    shareResult.classList.remove("show");
+    setTimeout(() => form.requestSubmit(), 350);
   });
 
   form.addEventListener("submit", async (e) => {
@@ -449,8 +550,10 @@ export function renderHome(container) {
       showShare(result.url);
     } catch (err) {
       copiedMsg.textContent = "";
-      shareResult.querySelector("h3").textContent = "Algo salió mal";
-      shareResult.querySelector(".hint").textContent = err.message || "No se pudo crear la carta.";
+      shareTitle.textContent = "Algo salió mal";
+      shareHint.textContent = err.message || "No se pudo crear la carta.";
+      shareRow.style.display = "none";
+      retryBtn.style.display = "block";
       shareResult.classList.add("show");
     } finally {
       submitBtn.disabled = false;
