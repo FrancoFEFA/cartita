@@ -420,51 +420,8 @@ export function renderHome(container) {
   const shareClose = container.querySelector("#share-close");
   const retryBtn = container.querySelector("#retry-btn");
 
-  let customBgDataUrl = null;
-
-  function optimizeImage(file) {
-    return new Promise((resolve, reject) => {
-      const MAX_SIZE = 10 * 1024 * 1024;
-      if (file.size > MAX_SIZE) {
-        reject(new Error("La imagen es demasiado grande. Máximo 10 MB."));
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const MAX_W = 1920;
-          const QUALITY = 0.95;
-          if (img.width <= MAX_W && img.height <= MAX_W && file.size < 1024 * 1024) {
-            resolve(e.target.result);
-            return;
-          }
-          const canvas = document.createElement("canvas");
-          let { width, height } = img;
-          if (width > MAX_W) {
-            height = Math.round(height * (MAX_W / width));
-            width = MAX_W;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = "high";
-          ctx.drawImage(img, 0, 0, width, height);
-          const mime = file.type || "image/jpeg";
-          try {
-            resolve(canvas.toDataURL(mime, QUALITY));
-          } catch {
-            resolve(canvas.toDataURL("image/jpeg", QUALITY));
-          }
-        };
-        img.onerror = () => reject(new Error("No se pudo leer la imagen. Intenta con otro archivo."));
-        img.src = e.target.result;
-      };
-      reader.onerror = () => reject(new Error("Error al leer el archivo."));
-      reader.readAsDataURL(file);
-    });
-  }
+  let customBgFile = null;
+  let customBgPreviewUrl = null;
 
   bgSelect.addEventListener("change", () => {
     if (bgSelect.value === "custom") {
@@ -472,29 +429,29 @@ export function renderHome(container) {
       bgFile.click();
     } else {
       bgFile.style.display = "none";
-      customBgDataUrl = null;
+      bgFile.value = "";
+      customBgFile = null;
+      if (customBgPreviewUrl) URL.revokeObjectURL(customBgPreviewUrl);
+      customBgPreviewUrl = null;
       bgPreview.classList.remove("has-image");
       bgPreview.style.backgroundImage = "";
       bgPreview.textContent = "Vista previa del fondo";
     }
   });
 
-  bgFile.addEventListener("change", async () => {
+  bgFile.addEventListener("change", () => {
     const file = bgFile.files[0];
     if (!file) return;
-    bgPreview.textContent = "Optimizando imagen…";
-    try {
-      const dataUrl = await optimizeImage(file);
-      customBgDataUrl = dataUrl;
-      bgPreview.classList.add("has-image");
-      bgPreview.style.backgroundImage = `url('${customBgDataUrl}')`;
-      bgPreview.textContent = "";
-    } catch (err) {
-      customBgDataUrl = null;
-      bgPreview.classList.remove("has-image");
-      bgPreview.style.backgroundImage = "";
-      bgPreview.textContent = err.message || "Error al procesar la imagen";
+    if (file.size > 50 * 1024 * 1024) {
+      bgPreview.textContent = "La imagen es demasiado grande. Máximo 50 MB.";
+      return;
     }
+    if (customBgPreviewUrl) URL.revokeObjectURL(customBgPreviewUrl);
+    customBgFile = file;
+    customBgPreviewUrl = URL.createObjectURL(file);
+    bgPreview.classList.add("has-image");
+    bgPreview.style.backgroundImage = `url('${customBgPreviewUrl}')`;
+    bgPreview.textContent = "";
   });
 
   function showShare(url) {
@@ -535,18 +492,19 @@ export function renderHome(container) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Sellando…";
 
-    const data = {
-      recipient: form.recipient.value.trim(),
-      sender: form.sender.value.trim(),
-      message: form.message.value.trim(),
-      theme: form.theme.value,
-      song: form.song.value,
-      background: bgSelect.value,
-      customBg: customBgDataUrl,
-    };
+    const formData = new FormData();
+    formData.append("recipient", form.recipient.value.trim());
+    formData.append("sender", form.sender.value.trim());
+    formData.append("message", form.message.value.trim());
+    formData.append("theme", form.theme.value);
+    formData.append("song", form.song.value);
+    formData.append("background", bgSelect.value);
+    if (customBgFile) {
+      formData.append("customBg", customBgFile);
+    }
 
     try {
-      const result = await createCard(data);
+      const result = await createCard(formData);
       showShare(result.url);
     } catch (err) {
       copiedMsg.textContent = "";

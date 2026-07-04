@@ -10,13 +10,14 @@ Plataforma de cartas animadas personalizables. Crea una carta con tu mensaje, el
 - Música de fondo opcional.
 - Múltiples temas visuales (romántico, informático, etc.).
 - Fondos personalizables.
+- Optimización de imágenes subidas vía Sharp (redimensiona a 1920px, quality 0.95, mantiene formato original).
 - Backend minimalista con almacenamiento en JSON (sin base de datos).
 - Enlace compartible por ID único.
 
 ## Stack
 
 - **Frontend**: Vanilla JS + Vite + GSAP (sin framework frontend).
-- **Backend**: Express.js 5 con almacenamiento en archivo JSON (sin base de datos).
+- **Backend**: Express.js 5 + Sharp + Multer con almacenamiento en archivo JSON (sin base de datos).
 - **Build**: Vite 6.
 
 ## Requisitos
@@ -67,7 +68,8 @@ Cartita/
 │   ├── components/         # Envelope, typewriter, hearts
 │   └── styles/             # CSS + temas
 ├── server/
-│   ├── index.js            # Express API
+│   ├── index.js            # Express API + Sharp optimización + Multer uploads
+│   ├── uploads/            # Imágenes subidas (NO versionado, se crea solo)
 │   ├── cards.json          # Almacenamiento (NO versionado, se crea solo)
 │   └── cards.example.json  # Plantilla de ejemplo (versionada)
 └── public/assets/          # Imágenes, SVGs y audio
@@ -80,33 +82,33 @@ Cartita/
 | POST   | `/api/cards`     | Crea una carta. Devuelve `{ id, url }`.          |
 | GET    | `/api/cards/:id` | Devuelve los datos de una carta por su ID.       |
 
-### Cuerpo del POST
+### Cuerpo del POST (multipart/form-data)
 
-```json
-{
-  "recipient": "Carolina",
-  "sender": "Franco",
-  "message": "Estimada Carolina...",
-  "theme": "romantic",
-  "song": "romantic",
-  "background": "default",
-  "customBg": null
-}
-```
+| Campo       | Tipo     | Requerido | Descripción                          |
+|-------------|----------|-----------|--------------------------------------|
+| `recipient` | texto    | sí        | Nombre del destinatario              |
+| `message`   | texto    | sí        | Contenido de la carta                |
+| `sender`    | texto    | no        | Nombre del remitente                 |
+| `theme`     | texto    | no        | Tema visual (`romantic`, etc.)       |
+| `song`      | texto    | no        | Música de fondo                      |
+| `background`| texto    | no        | Fondo (`default` o `custom`)         |
+| `customBg`  | archivo  | no        | Imagen de fondo (JPEG, PNG, WebP)    |
 
-Campos requeridos: `recipient`, `message`. El resto son opcionales (con defaults).
+La imagen se envía como archivo en el campo `customBg`. El servidor la redimensiona a un máximo de **1920px** de ancho, la comprime con **quality 0.95** y la guarda en `server/uploads/`. El resto de campos se envían como texto en el mismo formulario multipart.
 
-## Almacenamiento (`server/cards.json`)
+## Almacenamiento
 
-El servidor guarda las cartas en `server/cards.json`. **Este archivo no está versionado** (está en `.gitignore`) porque contiene datos de usuarios y se regenera en tiempo de ejecución.
+El servidor guarda dos tipos de datos:
 
-- Si el archivo no existe al arrancar, el servidor lo crea vacío automáticamente al recibir el primer POST.
-- Como referencia de la forma esperada, se incluye `server/cards.example.json` con `{}` (este sí está versionado).
+- **`server/cards.json`**: metadatos de las cartas (sin imágenes). No está versionado (`.gitignore`) porque contiene datos de usuarios.
+- **`server/uploads/`**: imágenes de fondo optimizadas en disco, una por carta. Tampoco está versionado.
+
+Si `cards.json` no existe al arrancar, el servidor lo crea vacío al recibir el primer POST. Como referencia de la forma esperada se incluye `server/cards.example.json` con `{}`.
 
 ## Flujo de uso
 
-1. El usuario entra a `/` y completa el formulario (destinatario, mensaje, tema, fondo).
-2. Al enviar, el backend crea la carta y devuelve un ID único.
+1. El usuario entra a `/` y completa el formulario (destinatario, mensaje, tema, fondo, imagen opcional).
+2. Al enviar, el frontend manda los datos como `multipart/form-data`; el backend procesa la imagen con Sharp (redimensiona y comprime) y guarda todo en `cards.json`.
 3. Se comparte el enlace `https://tu-dominio.com/card/{id}`.
 4. El destinatario lo abre, hace clic en el sobre y se reproduce la animación.
 

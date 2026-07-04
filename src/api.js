@@ -1,8 +1,7 @@
 export async function createCard(data) {
   const res = await fetch("/api/cards", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: data,
   });
   if (!res.ok) {
     let message;
