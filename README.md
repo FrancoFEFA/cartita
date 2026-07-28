@@ -77,7 +77,7 @@ En **Sin estilo**, si sub\u00eds una imagen de fondo, se ve **tal cual la subist
 
 ## Estilos: c\u00f3mo agregar uno nuevo
 
-Cada estilo vive en **un \u00fanico archivo CSS** autocontenido. Agregar uno nuevo son 3 pasos:
+Cada estilo vive en **un \u00fanico archivo CSS** autocontenido. Agregar uno nuevo son 4 pasos:
 
 1. **Copi\u00e1** `src/styles/themes/_template.css` como `src/styles/themes/<id>.css` y rellen\u00e1 las variables (colores, fuentes, overlay, decoraciones, sello). El archivo est\u00e1 comentado y gu\u00eda cada bloque.
 2. **Registralo en el cat\u00e1logo** `src/data/catalog.js` \u2014 agrega una entrada a `THEMES`:
