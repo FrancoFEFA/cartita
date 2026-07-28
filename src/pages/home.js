@@ -1,6 +1,12 @@
 import { createCard } from "../api.js";
+import { SONGS, THEMES, BACKGROUNDS, getSong } from "../data/catalog.js";
+import { createInlineMusic } from "../components/music.js";
 
 export function renderHome(container) {
+  const themeOptions = THEMES.map((t) => `<option value="${t.id}">${t.label}</option>`).join("");
+  const songOptions = SONGS.map((s) => `<option value="${s.id}">${s.label}</option>`).join("");
+  const bgOptions = BACKGROUNDS.map((b) => `<option value="${b.id}">${b.label}</option>`).join("");
+
   container.innerHTML = `
     <style>
       .form-page {
@@ -55,7 +61,7 @@ export function renderHome(container) {
         position: absolute;
         width: 78px;
         height: 78px;
-        background-image: url('/assets/flourish.svg');
+        background-image: url('/img/flourish.svg');
         background-size: contain;
         background-repeat: no-repeat;
         pointer-events: none;
@@ -365,23 +371,24 @@ export function renderHome(container) {
           <div class="field">
             <label for="theme">Estilo</label>
             <select id="theme">
-              <option value="romantic">Romántico</option>
+              ${themeOptions}
             </select>
           </div>
           <div class="field">
             <label for="song">Música de fondo</label>
             <select id="song">
-              <option value="romantic">Romántica ♪</option>
-              <option value="">Sin música</option>
+              ${songOptions}
             </select>
+            <div id="song-preview-slot" class="song-preview-slot"></div>
+            <input type="file" id="song-file" accept="audio/mpeg,audio/mp3,.mp3" style="display:none;">
+            <div id="song-file-msg" class="song-file-msg"></div>
           </div>
         </div>
 
         <div class="field">
           <label for="background-select">Fondo</label>
           <select id="background-select">
-            <option value="default">Por defecto (romántico)</option>
-            <option value="custom">Subir imagen propia</option>
+            ${bgOptions}
           </select>
           <div class="bg-preview" id="bg-preview">Vista previa del fondo</div>
           <input type="file" id="bg-file" accept="image/*" style="display:none;">
@@ -422,6 +429,56 @@ export function renderHome(container) {
 
   let customBgFile = null;
   let customBgPreviewUrl = null;
+
+  const songSelect = container.querySelector("#song");
+  const songFile = container.querySelector("#song-file");
+  const songFileMsg = container.querySelector("#song-file-msg");
+  const songPreviewSlot = container.querySelector("#song-preview-slot");
+  const preview = createInlineMusic(songPreviewSlot);
+  let customSongFile = null;
+  let customSongUrl = null;
+
+  function applySongSelection() {
+    const value = songSelect.value;
+    preview.pause();
+    if (customSongUrl) { URL.revokeObjectURL(customSongUrl); customSongUrl = null; }
+    customSongFile = null;
+    songFile.value = "";
+    songFile.style.display = "none";
+    songFileMsg.textContent = "";
+
+    if (value === "custom") {
+      songFile.style.display = "block";
+      songFileMsg.textContent = "Sube tu MP3 (máx. 15 MB)";
+      preview.setSource(null);
+    } else {
+      const song = getSong(value);
+      preview.setSource(song && song.file ? song.file : null);
+    }
+  }
+
+  songSelect.addEventListener("change", applySongSelection);
+
+  songFile.addEventListener("change", () => {
+    const file = songFile.files[0];
+    if (!file) return;
+    const allowed = ["audio/mpeg", "audio/mp3"];
+    if (!allowed.includes(file.type) && !/\.mp3$/i.test(file.name)) {
+      songFileMsg.textContent = "El archivo debe ser MP3.";
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      songFileMsg.textContent = "La canción es demasiado grande. Máximo 15 MB.";
+      return;
+    }
+    customSongFile = file;
+    if (customSongUrl) URL.revokeObjectURL(customSongUrl);
+    customSongUrl = URL.createObjectURL(file);
+    songFileMsg.textContent = file.name;
+    preview.setSource(customSongUrl);
+  });
+
+  applySongSelection();
 
   bgSelect.addEventListener("change", () => {
     if (bgSelect.value === "custom") {
@@ -491,6 +548,7 @@ export function renderHome(container) {
     e.preventDefault();
     submitBtn.disabled = true;
     submitBtn.textContent = "Sellando…";
+    preview.pause();
 
     const formData = new FormData();
     formData.append("recipient", form.recipient.value.trim());
@@ -501,6 +559,9 @@ export function renderHome(container) {
     formData.append("background", bgSelect.value);
     if (customBgFile) {
       formData.append("customBg", customBgFile);
+    }
+    if (customSongFile) {
+      formData.append("customSong", customSongFile);
     }
 
     try {

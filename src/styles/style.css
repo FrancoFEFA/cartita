@@ -1,22 +1,22 @@
 :root {
-  --primary-color: #c25a63;
-  --primary-deep: #a3424c;
-  --accent-gold: #c9a96e;
-  --accent-gold-soft: #d9c4a0;
+  --primary-color: #6b7280;
+  --primary-deep: #4b5563;
+  --accent-gold: #9ca3af;
+  --accent-gold-soft: #cbd2da;
 
-  --envelope-color: #f3d9d4;
-  --envelope-shadow: #d9b3ad;
-  --letter-bg: #fdf6f0;
-  --paper-shadow: rgba(180, 110, 110, 0.25);
+  --envelope-color: #d4d4d8;
+  --envelope-shadow: #b8b8bd;
+  --letter-bg: #ffffff;
+  --paper-shadow: rgba(0, 0, 0, 0.18);
 
-  --text-color: #7a3b3f;
-  --text-soft: #9a6a72;
-  --blush: #f7e6e0;
-  --cream: #faf1ea;
+  --text-color: #3f3f46;
+  --text-soft: #71717a;
+  --blush: #f4f4f5;
+  --cream: #fafafa;
 
-  --font-title: 'Playfair Display', serif;
-  --font-script: 'Parisienne', cursive;
-  --font-hand: 'Caveat', cursive;
+  --font-title: 'Inter', sans-serif;
+  --font-script: 'Inter', sans-serif;
+  --font-hand: 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
 
   --env-w: min(86vw, 320px);
@@ -66,8 +66,8 @@ body.has-bg::before {
   z-index: 1;
   pointer-events: none;
   background-image:
-    url('/assets/rose.svg'),
-    url('/assets/petal.svg');
+    url('/img/rose.svg'),
+    url('/img/petal.svg');
   background-size: 130px auto, 70px auto;
   background-position:
     8% 18%, 82% 22%, 15% 78%, 88% 80%;
@@ -175,7 +175,7 @@ body::after {
   transform: translate(-50%, -50%);
   width: 62px;
   height: 62px;
-  background-image: url('/assets/wax-seal.svg');
+  background-image: url('/img/wax-seal.svg');
   background-size: cover;
   border-radius: 50%;
   z-index: 5;
@@ -315,7 +315,7 @@ body::after {
   opacity: 0;
   z-index: 1;
   pointer-events: none;
-  background-image: url('/assets/heart.svg?v=2');
+  background-image: url('/img/heart.svg');
   background-size: cover;
 }
 
@@ -325,7 +325,7 @@ body::after {
   opacity: 0;
   z-index: 1;
   pointer-events: none;
-  background-image: url('/assets/petal.svg');
+  background-image: url('/img/petal.svg');
   background-size: contain;
   background-repeat: no-repeat;
 }
@@ -339,18 +339,30 @@ body::after {
   background: rgba(253, 246, 240, 0.85);
   border: 1px solid var(--accent-gold-soft);
   border-radius: 50%;
-  width: 46px;
-  height: 46px;
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(122, 59, 63, 0.18);
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
   backdrop-filter: blur(6px);
 }
 .music-control:hover { transform: scale(1.06); background: rgba(253, 246, 240, 0.98); }
-.music-control span { font-size: 1.2rem; }
+.music-control:active { transform: scale(0.96); }
+.music-control span { font-size: 1.4rem; line-height: 1; position: relative; z-index: 1; }
+.music-control.muted { opacity: 0.5; }
+.music-control.muted::after {
+  content: '';
+  position: absolute;
+  width: 62%;
+  height: 2px;
+  background: var(--primary-deep);
+  transform: rotate(-45deg);
+  border-radius: 2px;
+  z-index: 2;
+}
 
 /* Link listo para enviar */
 .share-card {
@@ -407,4 +419,39 @@ body::after {
   font-size: 0.78rem;
   color: var(--text-soft);
   margin-top: 8px;
+}
+
+/* Preview de música en el formulario */
+.song-preview-slot { margin-top: 6px; min-height: 18px; }
+.song-preview-link {
+  display: inline-block;
+  font-family: var(--font-hand);
+  font-size: 1.05rem;
+  color: var(--accent-gold);
+  cursor: pointer;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  border-bottom: 1px dashed transparent;
+  transition: color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+  user-select: none;
+}
+.song-preview-link:hover {
+  color: var(--primary-deep);
+  border-bottom-color: var(--primary-deep);
+}
+.song-preview-link:focus {
+  outline: none;
+  border-bottom-color: var(--primary-deep);
+}
+.song-file-msg {
+  font-family: var(--font-hand);
+  font-size: 0.95rem;
+  color: var(--text-soft);
+  margin-top: 6px;
+  min-height: 14px;
+}
+#song-file {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--text-soft);
 }

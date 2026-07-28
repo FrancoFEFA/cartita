@@ -21,3 +21,9 @@ export async function getCard(id) {
   if (!res.ok) throw new Error("Carta no encontrada");
   return res.json();
 }
+
+export async function deleteCard(id) {
+  const res = await fetch(`/api/cards/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("No se pudo eliminar la carta");
+  return res.json();
+}

@@ -10,6 +10,7 @@ dist/
 
 # Datos generados por el servidor (las cartas creadas por los usuarios)
 server/cards.json
+server/uploads/
 
 # Logs
 *.log

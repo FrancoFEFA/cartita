@@ -1,0 +1,79 @@
+/* ============================================================
+   TEMA: SIN ESTILO
+   Sobrio y中性. Solo el fondo, el sobre y el mensaje.
+   Sin pétalos, sin vignette, sin grano, sin velo sobre la imagen.
+   ============================================================ */
+
+[data-theme="none"] {
+  --primary-color: #6b7280;
+  --primary-deep: #4b5563;
+  --accent-gold: #9ca3af;
+  --accent-gold-soft: #cbd2da;
+  --envelope-color: #d4d4d8;
+  --envelope-shadow: #b8b8bd;
+  --letter-bg: #ffffff;
+  --text-color: #3f3f46;
+  --text-soft: #71717a;
+  --blush: #f4f4f5;
+  --cream: #fafafa;
+  --bg-overlay: transparent;
+  --bg-blur: 0px;
+  --font-title: 'Inter', sans-serif;
+  --font-script: 'Inter', sans-serif;
+  --font-hand: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+/* Fondo por defecto (sin imagen custom): gradiente neutro muy sutil */
+[data-theme="none"] body {
+  background: linear-gradient(135deg, #faf7f2 0%, #e8e6ec 100%);
+}
+
+/* FIX: sin velo ni blur sobre la imagen custom → se ve limpia */
+[data-theme="none"] body.has-bg::before {
+  display: none;
+}
+
+/* Sin decoraciones (pétalos, vignette, grano) */
+[data-theme="none"] .bg-deco,
+[data-theme="none"] .bg-vignette {
+  display: none;
+}
+[data-theme="none"] body::after {
+  display: none;
+}
+
+/* Sello de cera en gris neutro (mantiene el gesto de "sellar") */
+[data-theme="none"] .wax-seal {
+  background-image: url('/img/wax-seal.svg');
+  filter: grayscale(1) opacity(0.55);
+  box-shadow: 0 6px 10px rgba(0,0,0,0.28);
+}
+
+/* Contenido con tipografía limpia */
+[data-theme="none"] .letter-content h1 {
+  font-family: var(--font-title);
+  font-weight: 600;
+  font-size: 2.2rem;
+  letter-spacing: 0.2px;
+}
+
+[data-theme="none"] .letter-content p {
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+/* Click-indicator con sombra para leerse sobre cualquier foto */
+[data-theme="none"] .click-indicator {
+  color: var(--text-color);
+  font-family: var(--font-body);
+  text-shadow: 0 1px 3px rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.3);
+}
+
+[data-theme="none"] .envelope-wrapper {
+  box-shadow:
+    0 28px 55px rgba(0, 0, 0, 0.22),
+    0 12px 22px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}

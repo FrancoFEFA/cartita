@@ -29,7 +29,8 @@ export async function renderCard(container, id) {
 
   try {
     const card = await getCard(id);
-    document.documentElement.setAttribute("data-theme", card.theme || "romantic");
+    const theme = card.theme || "romantic";
+    document.documentElement.setAttribute("data-theme", theme);
     applyBackground(card);
 
     container.innerHTML = `
