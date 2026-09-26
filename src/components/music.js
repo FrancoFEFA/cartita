@@ -43,7 +43,6 @@ export function createMusic(container, songId, customSongUrl) {
   attachSource(audio, file);
 
   audio.volume = 0.5;
-  let started = false;
 
   function setIcon(playing) {
     if (!control) return;
@@ -57,7 +56,6 @@ export function createMusic(container, songId, customSongUrl) {
     audio
       .play()
       .then(() => {
-        started = true;
         setIcon(true);
       })
       .catch((err) => {
@@ -109,7 +107,7 @@ export function createMusic(container, songId, customSongUrl) {
     }
   }
 
-  return { play, pause, toggle, destroy, hasStarted: () => started };
+  return { play, pause, toggle, destroy };
 }
 
 export function createInlineMusic(container) {
@@ -208,5 +206,5 @@ export function createInlineMusic(container) {
     attachedSrc = null;
   }
 
-  return { setSource, toggle, pause, destroy, isPlaying: () => playing };
+  return { setSource, toggle, pause, destroy };
 }
