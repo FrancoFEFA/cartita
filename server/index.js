@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, copyFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from "crypto";
@@ -83,7 +83,30 @@ app.use("/uploads", express.static(UPLOADS_DIR, {
 
 function readCards() {
   if (!existsSync(DATA_FILE)) return {};
-  return JSON.parse(readFileSync(DATA_FILE, "utf-8"));
+  const raw = readFileSync(DATA_FILE, "utf-8");
+  // Un JSON corrupto (un write interrumpido, un BOM, una edición a
+  // mano) no puede frenar el arranque. cleanupOrphanUploads() llama a
+  // readCards() antes de hacer listen: si esto explota ahí, el servidor
+  // nunca llega a levantar.
+  const clean = raw.replace(/^\uFEFF/, "").trim();
+  if (!clean) return {};
+  try {
+    const parsed = JSON.parse(clean);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    // Lo respaldamos antes de seguir. Devolvemos {} para que el arranque
+    // siga, pero entonces el próximo writeCards() pisaría el archivo:
+    // la copia es lo único que conserva las cartas.
+    const backup = `${DATA_FILE}.corrupto-${Date.now()}`;
+    try {
+      copyFileSync(DATA_FILE, backup);
+      console.error(`cards.json ilegible (${err.message}). Copia guardada en ${backup}.`);
+    } catch {
+      console.error(`cards.json ilegible (${err.message}). No se pudo hacer la copia.`);
+    }
+    console.error("Se arranca con la base vacía. Revisá el archivo antes de crear cartas nuevas.");
+    return {};
+  }
 }
 
 function writeCards(data) {
@@ -366,14 +389,30 @@ app.delete("/api/cards/:id", removeLimiter, (req, res) => {
   res.json({ ok: true });
 });
 
-// In dev, Vite proxy handles /api. In prod, serve static files.
-if (process.env.NODE_ENV === "production") {
+// Archivo de /uploads que no existe
+// Tiene que dar 404, no caer en el catch-all de la SPA: si no, un
+// <img> roto recibiría index.html en lugar de una imagen.
+app.use("/uploads", (req, res) => {
+  res.status(404).json({ error: "Archivo no encontrado" });
+});
+
+// Ruta de /api que no existe
+// JSON y no index.html: acá solo llega el cliente, que espera datos.
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: "Ruta no encontrada" });
+});
+
+// En desarrollo el frontend lo sirve Vite, con proxy hacia /api; acá
+// servimos dist/. Lo que no sea /api ni /uploads cae en el catch-all:
+// es una ruta que decide el cliente, así que responde index.html.
+if (IS_PROD) {
   const distPath = join(__dirname, "..", "dist");
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { maxAge: "1y", index: false }));
   app.get("/{*splat}", (req, res) => {
-    if (req.path.startsWith("/api")) return;
     res.sendFile(join(distPath, "index.html"));
   });
+} else {
+  console.log("Modo desarrollo: el frontend lo sirve Vite en el 5173.");
 }
 
 cleanupOrphanUploads();
