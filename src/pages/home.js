@@ -1,5 +1,6 @@
-import { createCard } from "../api.js";
+import { createCard, deleteCard } from "../api.js";
 import { SONGS, THEMES, BACKGROUNDS, getSong } from "../data/catalog.js";
+import { rememberCard, getManageKey, forgetCard } from "../data/ownership.js";
 import { createInlineMusic } from "../components/music.js";
 
 export function renderHome(container) {
@@ -148,6 +149,15 @@ export function renderHome(container) {
         border-radius: 0;
         transition: border-color 0.25s ease, background 0.25s ease;
       }
+      /* El outline:none de arriba va con su reemplazo visible:
+         sin esto se perdía el foco al tabular por el formulario. */
+      .field input:focus-visible,
+      .field textarea:focus-visible,
+      .field select:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
       .field input::placeholder,
       .field textarea::placeholder {
         color: rgba(122,59,63,0.35);
@@ -280,6 +290,10 @@ export function renderHome(container) {
         outline: none;
         user-select: all;
       }
+      .share-row input:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 1px;
+      }
       .share-row button {
         border: none;
         border-radius: 10px;
@@ -408,6 +422,7 @@ export function renderHome(container) {
       </div>
       <div class="copied" id="copied-msg"></div>
       <button type="button" id="retry-btn" class="retry-btn" style="display:none;">Reintentar</button>
+      <button type="button" id="delete-btn" class="delete-link" style="display:none;">Borrar esta carta</button>
     </div>
   `;
 
@@ -426,9 +441,11 @@ export function renderHome(container) {
   const shareRow = container.querySelector("#share-row");
   const shareClose = container.querySelector("#share-close");
   const retryBtn = container.querySelector("#retry-btn");
+  const deleteBtn = container.querySelector("#delete-btn");
 
   let customBgFile = null;
   let customBgPreviewUrl = null;
+  let lastCreatedId = null;
 
   const songSelect = container.querySelector("#song");
   const songFile = container.querySelector("#song-file");
@@ -438,10 +455,27 @@ export function renderHome(container) {
   let customSongFile = null;
   let customSongUrl = null;
 
+  // Suelta las object URLs de los archivos elegidos. El navegador las
+  // tiene abiertas hasta que se revocan. Van en funciones separadas
+  // para que cambiar la canción no borre la vista previa del fondo,
+  // que sigue adjunta al formulario.
+  function releaseBg() {
+    if (customBgPreviewUrl) { URL.revokeObjectURL(customBgPreviewUrl); customBgPreviewUrl = null; }
+  }
+
+  function releaseSong() {
+    if (customSongUrl) { URL.revokeObjectURL(customSongUrl); customSongUrl = null; }
+  }
+
+  function releaseFiles() {
+    releaseBg();
+    releaseSong();
+  }
+
   function applySongSelection() {
     const value = songSelect.value;
     preview.pause();
-    if (customSongUrl) { URL.revokeObjectURL(customSongUrl); customSongUrl = null; }
+    releaseSong();
     customSongFile = null;
     songFile.value = "";
     songFile.style.display = "none";
@@ -471,8 +505,8 @@ export function renderHome(container) {
       songFileMsg.textContent = "La canción es demasiado grande. Máximo 15 MB.";
       return;
     }
+    releaseSong();
     customSongFile = file;
-    if (customSongUrl) URL.revokeObjectURL(customSongUrl);
     customSongUrl = URL.createObjectURL(file);
     songFileMsg.textContent = file.name;
     preview.setSource(customSongUrl);
@@ -488,8 +522,7 @@ export function renderHome(container) {
       bgFile.style.display = "none";
       bgFile.value = "";
       customBgFile = null;
-      if (customBgPreviewUrl) URL.revokeObjectURL(customBgPreviewUrl);
-      customBgPreviewUrl = null;
+      releaseBg();
       bgPreview.classList.remove("has-image");
       bgPreview.style.backgroundImage = "";
       bgPreview.textContent = "Vista previa del fondo";
@@ -503,7 +536,7 @@ export function renderHome(container) {
       bgPreview.textContent = "La imagen es demasiado grande. Máximo 50 MB.";
       return;
     }
-    if (customBgPreviewUrl) URL.revokeObjectURL(customBgPreviewUrl);
+    releaseBg();
     customBgFile = file;
     customBgPreviewUrl = URL.createObjectURL(file);
     bgPreview.classList.add("has-image");
@@ -518,6 +551,7 @@ export function renderHome(container) {
     shareHint.textContent = "Tu carta está lista. Copia el enlace y envíalo:";
     shareRow.style.display = "";
     retryBtn.style.display = "none";
+    deleteBtn.style.display = lastCreatedId ? "inline-block" : "none";
     shareResult.classList.add("show");
     shareInput.focus();
     shareInput.select();
@@ -526,12 +560,14 @@ export function renderHome(container) {
   copyBtn.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(shareInput.value);
-      copiedMsg.textContent = "¡Enlace copiado! Ya puedes pegarlo y enviarlo.";
     } catch {
+      // execCommand está deprecado pero es el único camino en contextos
+      // no seguros (abrir la app por IP en la LAN, por ejemplo), donde
+      // navigator.clipboard no existe.
       shareInput.select();
       document.execCommand("copy");
-      copiedMsg.textContent = "¡Enlace copiado! Ya puedes pegarlo y enviarlo.";
     }
+    copiedMsg.textContent = "¡Enlace copiado! Ya puedes pegarlo y enviarlo.";
     setTimeout(() => (copiedMsg.textContent = ""), 3500);
   });
 
@@ -541,8 +577,56 @@ export function renderHome(container) {
 
   retryBtn.addEventListener("click", () => {
     shareResult.classList.remove("show");
+    // requestSubmit() y no submit(): dispara los listeners de submit
+    // (incluyendo el nuestro), mientras que submit() solo envía el
+    // formulario sin validar ni disparar eventos.
     setTimeout(() => form.requestSubmit(), 350);
   });
+
+  // Botón de borrar
+  // Solo se habilita si esta máquina creó la carta.
+  deleteBtn.addEventListener("click", async () => {
+    if (!lastCreatedId) return;
+    const manageKey = getManageKey(lastCreatedId);
+    if (!manageKey) return;
+
+    const ok = window.confirm(
+      "¿Borrar esta carta? Se elimina para siempre y el enlace deja de funcionar."
+    );
+    if (!ok) return;
+
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = "Borrando…";
+
+    try {
+      await deleteCard(lastCreatedId, manageKey);
+      forgetCard(lastCreatedId);
+      lastCreatedId = null;
+      shareResult.classList.remove("show");
+      resetForm();
+      submitBtn.textContent = "Sellar y crear carta";
+    } catch (err) {
+      copiedMsg.textContent = err.message || "No se pudo borrar la carta.";
+    } finally {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = "Borrar esta carta";
+    }
+  });
+
+  // Limpieza del formulario
+  // form.reset() solo alcanza para los inputs: los archivos que
+  // elegimos viven en variables JS. Sin liberarlos acá, el próximo
+  // envío volvería a subir la imagen y la canción de la carta anterior.
+  function resetForm() {
+    form.reset();
+    releaseFiles();
+    customBgFile = null;
+    customSongFile = null;
+    bgPreview.classList.remove("has-image");
+    bgPreview.style.backgroundImage = "";
+    bgPreview.textContent = "Vista previa del fondo";
+    applySongSelection();
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -566,6 +650,16 @@ export function renderHome(container) {
 
     try {
       const result = await createCard(formData);
+
+      // Si no vino la clave, no queda forma de borrar la carta
+      // después, así que no la anotamos como propia.
+      if (result.manageKey) {
+        rememberCard(result.id, result.manageKey);
+        lastCreatedId = result.id;
+      } else {
+        lastCreatedId = null;
+      }
+
       showShare(result.url);
     } catch (err) {
       copiedMsg.textContent = "";
@@ -573,10 +667,20 @@ export function renderHome(container) {
       shareHint.textContent = err.message || "No se pudo crear la carta.";
       shareRow.style.display = "none";
       retryBtn.style.display = "block";
+      deleteBtn.style.display = "none";
       shareResult.classList.add("show");
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = "Sellar y crear carta";
     }
   });
+
+  // Teardown de la vista
+  // Los listeners del formulario se van solos con el innerHTML, pero
+  // las object URLs y el audio de preview no: los tiene el documento,
+  // no el nodo, así que hay que liberarlos a mano.
+  return function teardown() {
+    preview.destroy();
+    releaseFiles();
+  };
 }

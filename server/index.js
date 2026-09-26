@@ -3,7 +3,7 @@ import cors from "cors";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes, createHash, timingSafeEqual } from "crypto";
 import multer from "multer";
 import sharp from "sharp";
 import rateLimit from "express-rate-limit";
@@ -88,6 +88,42 @@ function readCards() {
 
 function writeCards(data) {
   writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+// Clave de gestión de cada carta
+// Al crear una carta se genera una clave aleatoria que solo recibe
+// quien la creó. En el JSON guardamos su hash, nunca la clave:
+// si alguien lee cards.json no puede borrar cartas ajenas.
+function generateManageKey() {
+  return randomBytes(24).toString("base64url");
+}
+
+function hashKey(key) {
+  return createHash("sha256").update(String(key)).digest("hex");
+}
+
+// Compara el hash guardado con el que resulta de la clave que llega.
+// timingSafeEqual en vez de ==, que compara a tiempo variable: no
+// cuesta nada evitarlo, y la comparación es de hashes, no de claves.
+function keysMatch(storedHash, providedKey) {
+  if (!storedHash || !providedKey) return false;
+  const a = Buffer.from(storedHash, "hex");
+  const b = Buffer.from(hashKey(providedKey), "hex");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+// La clave puede venir en el header, la query o el body,
+// para que el cliente no esté atado a una sola forma.
+function extractKey(req) {
+  return req.get("x-card-key") || req.query.key || req.body?.key || "";
+}
+
+// Nunca devolvemos el hash: la respuesta pública de una carta
+// no debe filtrar nada que sirva para gestionarla.
+function publicCard(card) {
+  const { manageKeyHash, ...rest } = card;
+  return rest;
 }
 
 function removeUpload(uploadPath) {
@@ -192,6 +228,7 @@ app.post("/api/cards", createLimiter, (req, res) => {
         const background = VALID_BACKGROUNDS.has(req.body.background) ? req.body.background : DEFAULT_BACKGROUND;
 
         const id = randomUUID().slice(0, 8);
+        const manageKey = generateManageKey();
         let customBgPath = null;
         let customSongPath = null;
 
@@ -278,9 +315,12 @@ app.post("/api/cards", createLimiter, (req, res) => {
           customBg: customBgPath,
           customSong: customSongPath,
           createdAt: new Date().toISOString(),
+          // La clave en claro solo se devuelve una vez, en esta
+          // respuesta; acá queda únicamente su hash.
+          manageKeyHash: hashKey(manageKey),
         };
         writeCards(cards);
-        res.json({ id, url: `/card/${id}` });
+        res.json({ id, url: `/card/${id}`, manageKey });
       } catch (err) {
         rollbackUploads();
         console.error("Error al crear carta:", err);
@@ -290,17 +330,34 @@ app.post("/api/cards", createLimiter, (req, res) => {
   );
 });
 
+// Buscamos con hasOwn y no con cards[id]: cards es un objeto plano,
+// así que también responde por claves heredadas de Object.prototype.
+// /api/cards/toString devolvía 200 con un cuerpo vacío en vez de 404.
+function findCard(cards, id) {
+  if (!id || !Object.hasOwn(cards, id)) return null;
+  const card = cards[id];
+  return card && typeof card === "object" ? card : null;
+}
+
 app.get("/api/cards/:id", (req, res) => {
   const cards = readCards();
-  const card = cards[req.params.id];
+  const card = findCard(cards, req.params.id);
   if (!card) return res.status(404).json({ error: "Carta no encontrada" });
-  res.json(card);
+  res.json(publicCard(card));
 });
 
-app.delete("/api/cards/:id", (req, res) => {
+// Borrar exige la clave de gestión que se recibió al crear la carta.
+// El ID son 8 hex y es adivinable, pero con eso no alcanza: hay que
+// tener la clave, y además el rate limit corta los intentos desde una
+// misma IP.
+app.delete("/api/cards/:id", removeLimiter, (req, res) => {
   const cards = readCards();
-  const card = cards[req.params.id];
+  const card = findCard(cards, req.params.id);
   if (!card) return res.status(404).json({ error: "Carta no encontrada" });
+
+  if (!keysMatch(card.manageKeyHash, extractKey(req))) {
+    return res.status(401).json({ error: "No tenés permiso para borrar esta carta." });
+  }
 
   removeUpload(card.customBg);
   removeUpload(card.customSong);
