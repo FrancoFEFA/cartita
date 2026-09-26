@@ -2,11 +2,16 @@ import gsap from "gsap";
 
 let intervalId = null;
 
+// Las partículas se cuelgan de document.body, no del contenedor de la
+// carta. Con solo clearInterval quedaban huérfanas en el DOM al navegar.
+const PARTICLE_ATTR = "data-cartita-particle";
+
 export function startFloatingHearts() {
   if (intervalId) return;
   intervalId = setInterval(() => {
     const isPetal = Math.random() < 0.45;
     const el = document.createElement("div");
+    el.setAttribute(PARTICLE_ATTR, "");
     el.classList.add(isPetal ? "petal" : "heart");
     document.body.appendChild(el);
 
@@ -52,5 +57,11 @@ export function stopFloatingHearts() {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
+  }
+  // Las que ya estaban en vuelo se sacan por atributo, así que no
+  // corremos el riesgo de borrar nodos ajenos con la clase.
+  for (const el of document.querySelectorAll(`[${PARTICLE_ATTR}]`)) {
+    gsap.killTweensOf(el);
+    el.remove();
   }
 }
