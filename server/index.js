@@ -20,12 +20,21 @@ import {
   VALID_SONGS, VALID_THEMES, VALID_BACKGROUNDS,
   DEFAULT_SONG, DEFAULT_THEME, DEFAULT_BACKGROUND,
   AUDIO_MIME, AUDIO_MAX_SIZE, IMAGE_MAX_SIZE,
+  TEXT_LIMITS, RATE_LIMITS, MAX_FIELDS, MAX_FIELD_SIZE, MAX_PARTS,
 } from "./catalog.js";
 
-const storage = multer.memoryStorage();
+// Subida de archivos
+// Los archivos se guardan en memoria y luego sharp los procesa.
+// El tope global es el de la imagen (la más pesada); el audio se
+// valida aparte, pero entra completo en RAM antes de rechazarse.
 const upload = multer({
-  storage,
-  limits: { fileSize: IMAGE_MAX_SIZE },
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: IMAGE_MAX_SIZE,
+    fields: MAX_FIELDS,
+    fieldSize: MAX_FIELD_SIZE,
+    parts: MAX_PARTS,
+  },
 });
 
 const app = express();
@@ -93,15 +102,50 @@ app.post("/api/cards", (req, res) => {
               : "La imagen es demasiado grande. Máximo 50 MB.";
             return res.status(413).json({ error: field });
           }
-          return res.status(400).json({ error: err.message });
+          if (err.code === "LIMIT_FIELD_SIZE" || err.code === "LIMIT_FIELD_VALUE") {
+            return res.status(413).json({ error: "El texto de la carta es demasiado largo." });
+          }
+          if (err.code === "LIMIT_FIELD_COUNT" || err.code === "LIMIT_PART_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE") {
+            return res.status(400).json({ error: "Formulario inesperado." });
+          }
+          return res.status(400).json({ error: "No se pudo leer el formulario." });
         }
-        return res.status(400).json({ error: err.message });
+        return res.status(400).json({ error: "No se pudo leer el formulario." });
+      }
+
+      // Archivos escritos en disco
+      // Todo lo que se escribe queda anotado en writtenFiles, y
+      // rollbackUploads() lo borra si algo falla más abajo: sin eso,
+      // un fallo a mitad de la creación dejaba huérfanos en uploads/.
+      const writtenFiles = [];
+
+      function rollbackUploads() {
+        for (const file of writtenFiles) {
+          try {
+            if (existsSync(file)) unlinkSync(file);
+          } catch (unlinkErr) {
+            console.warn(`No se pudo revertir ${file}:`, unlinkErr.message);
+          }
+        }
       }
 
       try {
-        const { recipient, sender, message } = req.body;
+        const recipient = String(req.body.recipient || "").trim();
+        const sender = String(req.body.sender || "").trim();
+        const message = String(req.body.message || "").trim();
+
         if (!recipient || !message) {
           return res.status(400).json({ error: "recipient y message son requeridos" });
+        }
+
+        // Los tres topes están en TEXT_LIMITS (catalog.js), donde ya se
+        // explica por qué existen. Acá lo que importa es frenarlos antes
+        // de escribir nada en disco.
+        if (recipient.length > TEXT_LIMITS.recipient || sender.length > TEXT_LIMITS.sender) {
+          return res.status(400).json({ error: "Los nombres son demasiado largos." });
+        }
+        if (message.length > TEXT_LIMITS.message) {
+          return res.status(400).json({ error: `El mensaje no puede superar los ${TEXT_LIMITS.message} caracteres.` });
         }
 
         const theme = VALID_THEMES.has(req.body.theme) ? req.body.theme : DEFAULT_THEME;
@@ -115,6 +159,23 @@ app.post("/api/cards", (req, res) => {
         const customBgFile = req.files?.customBg?.[0];
         const customSongFile = req.files?.customSong?.[0];
 
+        // Validación de los archivos
+        // Los dos se revisan antes de escribir nada en disco. El audio
+        // va primero a propósito: si se validaba después de subir la
+        // imagen, un 400 acá dejaba esa imagen huérfana en uploads/.
+        if (customSongFile) {
+          if (!AUDIO_MIME.has(customSongFile.mimetype)) {
+            return res.status(400).json({ error: "La canción debe ser un archivo MP3." });
+          }
+          if (customSongFile.size > AUDIO_MAX_SIZE) {
+            return res.status(413).json({ error: "La canción es demasiado grande. Máximo 15 MB." });
+          }
+        }
+
+        if (song === "custom" && !customSongFile) {
+          return res.status(400).json({ error: "Seleccionaste una canción propia pero no se recibió el archivo." });
+        }
+
         if (customBgFile) {
           const formatMap = {
             "image/jpeg": "jpeg",
@@ -127,46 +188,50 @@ app.post("/api/cards", (req, res) => {
           const filename = `${id}.${ext}`;
           const outputPath = join(UPLOADS_DIR, filename);
 
-          let pipeline = sharp(customBgFile.buffer);
-          const metadata = await pipeline.metadata();
+          // El tipo y el contenido los manda el cliente, así que acá
+          // pueden llegar bytes que no son una imagen: un .png que en
+          // realidad es texto, un GIF que sharp no puede decodificar.
+          // Sin este catch, ese error caía en el 500 de más abajo y el
+          // usuario veía un fallo del servidor por un archivo suyo.
+          try {
+            let pipeline = sharp(customBgFile.buffer);
+            const metadata = await pipeline.metadata();
 
-          if (metadata.width > 1920) {
-            pipeline = pipeline.resize(1920, null, {
-              fit: "inside",
-              withoutEnlargement: true,
-            });
+            if (metadata.width > 1920) {
+              pipeline = pipeline.resize(1920, null, {
+                fit: "inside",
+                withoutEnlargement: true,
+              });
+            }
+
+            const formatOptions = fmt === "png" ? { compressionLevel: 9 }
+              : fmt === "webp" ? { quality: 95 }
+              : fmt === "avif" ? { quality: 85 }
+              : { quality: 95, mozjpeg: true };
+
+            await pipeline.toFormat(fmt, formatOptions).toFile(outputPath);
+          } catch (imgErr) {
+            console.warn(`No se pudo procesar ${filename}:`, imgErr.message);
+            return res.status(400).json({ error: "No pudimos leer la imagen. Puede estar dañada o no ser un formato válido." });
           }
 
-          const formatOptions = fmt === "png" ? { compressionLevel: 9 }
-            : fmt === "webp" ? { quality: 95 }
-            : fmt === "avif" ? { quality: 85 }
-            : { quality: 95, mozjpeg: true };
-
-          await pipeline.toFormat(fmt, formatOptions).toFile(outputPath);
+          writtenFiles.push(outputPath);
           customBgPath = `/uploads/${filename}`;
         }
 
         if (customSongFile) {
-          if (!AUDIO_MIME.has(customSongFile.mimetype)) {
-            return res.status(400).json({ error: "La canción debe ser un archivo MP3." });
-          }
-          if (customSongFile.size > AUDIO_MAX_SIZE) {
-            return res.status(413).json({ error: "La canción es demasiado grande. Máximo 15 MB." });
-          }
           const filename = `${id}.mp3`;
-          writeFileSync(join(UPLOADS_DIR, filename), customSongFile.buffer);
+          const outputPath = join(UPLOADS_DIR, filename);
+          writeFileSync(outputPath, customSongFile.buffer);
+          writtenFiles.push(outputPath);
           customSongPath = `/uploads/${filename}`;
-        }
-
-        if (song === "custom" && !customSongPath) {
-          return res.status(400).json({ error: "Seleccionaste una canción propia pero no se recibió el archivo." });
         }
 
         const cards = readCards();
         cards[id] = {
           id,
           recipient,
-          sender: sender || "",
+          sender,
           message,
           theme,
           song,
@@ -178,6 +243,7 @@ app.post("/api/cards", (req, res) => {
         writeCards(cards);
         res.json({ id, url: `/card/${id}` });
       } catch (err) {
+        rollbackUploads();
         console.error("Error al crear carta:", err);
         res.status(500).json({ error: "Error al procesar la carta" });
       }
