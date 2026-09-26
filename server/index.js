@@ -6,11 +6,13 @@ import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import multer from "multer";
 import sharp from "sharp";
+import rateLimit from "express-rate-limit";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = join(__dirname, "cards.json");
 const UPLOADS_DIR = join(__dirname, "uploads");
 const PORT = process.env.PORT || 3001;
+const IS_PROD = process.env.NODE_ENV === "production";
 
 if (!existsSync(UPLOADS_DIR)) {
   mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -38,9 +40,46 @@ const upload = multer({
 });
 
 const app = express();
+
+// Trust proxy
+// express-rate-limit identifica por IP. Si hay un proxy delante
+// (Nginx, Cloudflare, Fly...) hay que declararlo con TRUST_PROXY o
+// todas las peticiones cuentan como una sola IP.
+if (process.env.TRUST_PROXY) {
+  const value = process.env.TRUST_PROXY;
+  app.set("trust proxy", value === "true" ? 1 : isNaN(Number(value)) ? value : Number(value));
+} else if (IS_PROD) {
+  console.warn("AVISO: TRUST_PROXY no está definido. Si hay un proxy delante, el rate limiting contará a todos los visitantes como una sola IP.");
+}
+
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
-app.use("/uploads", express.static(UPLOADS_DIR));
+
+// Rate limiting
+const RATE_LIMIT_ON = process.env.RATE_LIMIT !== "off";
+
+function limit({ windowMs, max }) {
+  if (!RATE_LIMIT_ON) return (req, res, next) => next();
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    // Usamos el keyGenerator por defecto de la librería: ya agrupa
+    // los IPv6 por /64, algo que un req.ip "a pelo" no hace.
+    message: { error: "Demasiadas peticiones. Reintentá en unos minutos." },
+  });
+}
+
+const apiLimiter = limit(RATE_LIMITS.api);
+const createLimiter = limit(RATE_LIMITS.create);
+const removeLimiter = limit(RATE_LIMITS.remove);
+
+app.use("/api", apiLimiter);
+app.use("/uploads", express.static(UPLOADS_DIR, {
+  maxAge: "7d",
+  setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff"),
+}));
 
 function readCards() {
   if (!existsSync(DATA_FILE)) return {};
@@ -89,7 +128,7 @@ function cleanupOrphanUploads() {
   }
 }
 
-app.post("/api/cards", (req, res) => {
+app.post("/api/cards", createLimiter, (req, res) => {
   upload.fields([{ name: "customBg", maxCount: 1 }, { name: "customSong", maxCount: 1 }])(
     req,
     res,
@@ -284,4 +323,9 @@ cleanupOrphanUploads();
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  if (RATE_LIMIT_ON) {
+    console.log(`Rate limiting activo: ${RATE_LIMITS.create.max} cartas/hora por IP.`);
+  } else {
+    console.log("Rate limiting DESACTIVADO (RATE_LIMIT=off).");
+  }
 });
