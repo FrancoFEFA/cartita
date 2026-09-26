@@ -1,17 +1,37 @@
-export function startTypewriter(element, text, speed = 15) {
-  return new Promise((resolve) => {
-    let i = 0;
+// Typewriter cancelable
+// start() cancela lo que estuviera escribiendo antes de comenzar, así
+// que cerrar y reabrir el sobre no deja dos intervalos peleándose por
+// el mismo nodo. Cada carácter entra como nodo de texto: sin HTML que
+// reinterpretar en cada tick, y sin forma de inyectar marcado.
+
+export function createTypewriter(element) {
+  let timer = null;
+
+  function cancel() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  function start(text, speed = 15) {
+    cancel();
     element.textContent = "";
-    const interval = setInterval(() => {
-      if (i < text.length) {
-        element.innerHTML += text.charAt(i);
+
+    return new Promise((resolve) => {
+      let i = 0;
+      timer = setInterval(() => {
+        if (i >= text.length) {
+          cancel();
+          resolve();
+          return;
+        }
+        element.append(document.createTextNode(text.charAt(i)));
         element.scrollTop = element.scrollHeight;
         i++;
-      } else {
-        clearInterval(interval);
-        resolve();
-      }
-    }, speed);
-    return () => clearInterval(interval);
-  });
+      }, speed);
+    });
+  }
+
+  return { start, cancel };
 }
